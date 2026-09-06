@@ -4,7 +4,7 @@
 **Версия:** 1Cat-vLLM 1.3.0  
 **Официальные референсы:** [README](https://github.com/1CatAI/1Cat-vLLM) · [Releases](https://github.com/1CatAI/1Cat-vLLM/releases)
 
-> Qwen3.8-27B-**NVFP4 + DFlash2** (1Cat 1.5.0, TP4) — отдельный гайд: [GUIDE-NVFP4-DFLASH2-RU.md](./GUIDE-NVFP4-DFLASH2-RU.md).
+> Qwen3.8-27B-**NVFP4 + DFlash2** (1Cat **1.5.0** wheel, TP4) — отдельный гайд: [GUIDE-NVFP4-DFLASH2-RU.md](./GUIDE-NVFP4-DFLASH2-RU.md). Wheel 1.3.0 DFlash2 не поднимает.
 
 
 ## 0. Система
@@ -92,6 +92,8 @@ python -m pip install --prefer-binary --no-cache-dir \
 ```
 
 Wheel уже тянет Torch cu128 и включает `flash_attn_v100` + SM70-ядра.
+
+> Этот гайд ставит **1.3.0** (AWQ/MTP). Для Qwen3.8 **NVFP4 + DFlash2** нужен wheel **1.5.0** в отдельном env — [GUIDE-NVFP4-DFLASH2-RU.md](./GUIDE-NVFP4-DFLASH2-RU.md).
 
 Проверяем:
 

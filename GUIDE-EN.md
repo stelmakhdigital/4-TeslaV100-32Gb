@@ -4,6 +4,8 @@
 **Version:** 1Cat-vLLM 1.3.0  
 **Official references:** [README](https://github.com/1CatAI/1Cat-vLLM) · [Releases](https://github.com/1CatAI/1Cat-vLLM/releases)
 
+> Qwen3.8-27B-**NVFP4 + DFlash2** (1Cat **1.5.0** wheel, TP4) — Russian guide: [GUIDE-NVFP4-DFLASH2-RU.md](./GUIDE-NVFP4-DFLASH2-RU.md). The 1.3.0 wheel does not start DFlash2.
+
 
 ## 0. System
 
@@ -90,6 +92,8 @@ python -m pip install --prefer-binary --no-cache-dir \
 ```
 
 The wheel already pulls Torch cu128 and includes `flash_attn_v100` + SM70 kernels.
+
+> This guide installs **1.3.0** (AWQ/MTP). Qwen3.8 **NVFP4 + DFlash2** needs the **1.5.0** wheel in a separate env — [GUIDE-NVFP4-DFLASH2-RU.md](./GUIDE-NVFP4-DFLASH2-RU.md).
 
 Verify:
 
