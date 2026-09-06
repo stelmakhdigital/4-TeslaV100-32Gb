@@ -1,8 +1,8 @@
 # 4-TeslaV100-32Gb
 
-Configurations and scripts for working with the Tesla V100 32Gb on vLLM — [GUIDE-EN.md](GUIDE-EN.md)
+Configurations and scripts for working with the Tesla V100 32Gb on vLLM + llama.cpp (Q8_0, MTP, 500K context) — [GUIDE-EN.md](GUIDE-EN.md)
 
-Конфигурация и скрипты для работы с V100 32Gb на vLLM — [GUIDE-RU.md](GUIDE-RU.md)
+Конфигурация и скрипты для работы с V100 32Gb на vLLM + llama.cpp (Q8_0, MTP, 500K контекст) — [GUIDE-RU.md](GUIDE-RU.md)
 
 ---
 
