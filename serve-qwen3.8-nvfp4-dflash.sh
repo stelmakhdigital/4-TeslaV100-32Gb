@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Qwen3.8-27B-NVFP4 + DFlash2 — TP4, 1Cat-vLLM 1.5.0 wheel, 4× V100-SXM2-32GB
-# Target по умолчанию = QUASAR all-NVFP4; drafter = incoai BF16 DFlash2.
-# Релизный профиль: dtype half, fp8_e5m2, util 0.80, batched 4096, seqs 4, probabilistic.
-# Mixed: MODEL=/mnt/storage/models/Qwen3.8-27B-NVFP4-DFlash2 (unit-scale patch).
-# 32GB: GPU_UTIL=0.90 BATCHED_TOKENS=8192
-# 512K = YaRN×2. Eval 16K EOS + seeds 42/123/2026 — только на клиенте.
+# Qwen3.8-27B-NVFP4 + DFlash2 — TP4, 1Cat-vLLM 1.5.0, 4× V100-SXM2-32GB
+# Target = NVFP4 с lm_head BF16; drafter = incoai BF16 DFlash2.
+# Fast path: fp8_e5m2 + FLASH_ATTN_V100 + FULL CUDA Graph + prefix + Mamba align.
+# Sampling сервера: T=1.0 top_p=0.95 top_k=20 xhigh. Потолок выхода 64K.
+# Eval 16K EOS + seeds 42/123/2026 — только на клиенте (max_tokens/seed).
+# Mixed NVFP4: unit-scale patch. 512K = YaRN×2.
+# Откат: GPU_UTIL=0.80 BATCHED_TOKENS=4096 ./serve-qwen3.8-nvfp4-dflash4.sh
 set -euo pipefail
 source ~/bin/1cat-env-15.sh
 
@@ -14,20 +15,20 @@ export VLLM_SM70_FLASH_ATTN_V100=1
 export VLLM_SM70_NVFP4_TURBOMIND=1
 cd ~
 
-# --model: QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4
+# --model: dfischermittwald/Qwen3.8-27B-NVFP4-DFlash2
 # --speculative-config: incoai/Qwen3.8-27B-DFlash2 @ dedf8df68adfb1afeaf7b7480c0a0243108177b4
-MODEL="${MODEL:-/mnt/storage/models/Qwen3.8-27B-QUASAR-NVFP4}"
+MODEL="${MODEL:-/mnt/storage/models/Qwen3.8-27B-NVFP4-DFlash2}"
 DRAFT="${DRAFT:-/mnt/storage/models/Qwen3.8-27B-DFlash2}"
 PORT="${PORT:-8000}"
-GPU_UTIL="${GPU_UTIL:-0.80}"
-BATCHED_TOKENS="${BATCHED_TOKENS:-4096}"
-MAX_NUM_SEQS="${MAX_NUM_SEQS:-4}"
-MM_IMAGES="${MM_IMAGES:-100}"
+GPU_UTIL="${GPU_UTIL:-0.90}"
+BATCHED_TOKENS="${BATCHED_TOKENS:-8192}"
+MM_IMAGES="${MM_IMAGES:-500}"
 # 512K = 524288; натив 262144 → YaRN factor 2
 CTX="${CTX:-262144}"
 NATIVE_CTX="${NATIVE_CTX:-262144}"
 YARN_FACTOR="${YARN_FACTOR:-2.0}"
 SEEDS="${SEEDS:-42,123,2026}"
+SPEC_TOKENS="${SPEC_TOKENS:-6}"
 
 [[ -f "$MODEL/config.json" ]] || { echo "No config.json in $MODEL"; exit 1; }
 [[ -f "$DRAFT/config.json" ]] || { echo "No config.json in $DRAFT"; exit 1; }
@@ -55,36 +56,34 @@ if old in text:
 elif "if not sm70_flash_v100:" in text:
     print("e5m2 unit-scale patch already applied:", p)
 else:
-    print("warn: e5m2 guard not found in", p, "(QUASAR/wheel may not need the mixed patch)")
+    raise SystemExit(f"cannot patch e5m2 guard in {p}")
 PY
 
 if [[ "$DRAFT" == /* ]]; then
-  SPEC="{\"method\":\"dflash\",\"model\":\"${DRAFT}\",\"kv_cache_dtype\":\"auto\",\"draft_sample_method\":\"probabilistic\"}"
+  SPEC="{\"method\":\"dflash\",\"model\":\"${DRAFT}\",\"kv_cache_dtype\":\"auto\",\"num_speculative_tokens\":${SPEC_TOKENS}}"
 else
-  SPEC="{\"method\":\"dflash\",\"model\":\"${DRAFT}\",\"revision\":\"dedf8df68adfb1afeaf7b7480c0a0243108177b4\",\"kv_cache_dtype\":\"auto\",\"draft_sample_method\":\"probabilistic\"}"
+  SPEC="{\"method\":\"dflash\",\"model\":\"${DRAFT}\",\"revision\":\"dedf8df68adfb1afeaf7b7480c0a0243108177b4\",\"kv_cache_dtype\":\"auto\",\"num_speculative_tokens\":${SPEC_TOKENS}}"
 fi
 
-echo "engine: model=${MODEL} ctx=${CTX} util=${GPU_UTIL} batched=${BATCHED_TOKENS} seqs=${MAX_NUM_SEQS} mm_images=${MM_IMAGES}"
+echo "engine: ctx=${CTX} util=${GPU_UTIL} batched=${BATCHED_TOKENS} mm_images=${MM_IMAGES}"
 echo "eval sampling (client): seeds=${SEEDS} max_tokens=16384"
 
 ARGS=(
   --model "$MODEL"
   --served-model-name qwen3.8-27b-dflash2
   --trust-remote-code
-  --dtype half
   --tensor-parallel-size 4
   --attention-backend FLASH_ATTN_V100
   --kv-cache-dtype fp8_e5m2
   --max-model-len "$CTX"
   --gpu-memory-utilization "$GPU_UTIL"
-  --max-num-batched-tokens "$BATCHED_TOKENS"
-  --max-num-seqs "$MAX_NUM_SEQS"
   --enable-prefix-caching
   --mamba-cache-mode align
   --enable-chunked-prefill
+  --max-num-batched-tokens "$BATCHED_TOKENS"
   --compilation-config '{"cudagraph_mode":"FULL"}'
   --generation-config auto
-  --override-generation-config '{"temperature":1.0,"top_p":0.95,"top_k":20,"max_new_tokens":65536}'
+  --override-generation-config '{"temperature":0.6,"top_p":0.95,"top_k":20,"max_new_tokens":65536}'
   --enable-auto-tool-choice
   --tool-call-parser qwen3_coder
   --reasoning-parser qwen3
